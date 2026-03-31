@@ -8,6 +8,16 @@ const MAX_TESTS_PER_FEATURE = 100;
 const MIN_DURATION = 10;
 const MAX_DURATION = 120;
 
+function getDurationRange(featureNum) {
+  if (featureNum <= 10) {
+    return { min: 90, max: 120 };
+  } else if (featureNum <= 20) {
+    return { min: 50, max: 89 };
+  } else {
+    return { min: 10, max: 49 };
+  }
+}
+
 const testsDir = path.join(__dirname, 'tests', 'features');
 if (!fs.existsSync(testsDir)) {
   fs.mkdirSync(testsDir, { recursive: true });
@@ -39,7 +49,8 @@ for (let f = 0; f < NUM_FEATURES; f++) {
   for (let t = 0; t < testCount; t++) {
     const testId = globalTestId++;
     const testName = `test-${String(testId).padStart(4, '0')}`;
-    const baseDuration = Math.floor(Math.random() * (MAX_DURATION - MIN_DURATION + 1)) + MIN_DURATION;
+    const range = getDurationRange(featureNum);
+    const baseDuration = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
 
     tests.push({
       id: testId,

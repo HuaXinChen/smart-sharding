@@ -1,31 +1,31 @@
 import { test, sleep } from '../utils';
 test('test-0291', async () => {
-  await sleep(50);
+  await sleep(100);
 });
 test('test-0292', async () => {
-  await sleep(93);
+  await sleep(111);
 });
 test('test-0293', async () => {
-  await sleep(64);
+  await sleep(102);
 });
 test('test-0294', async () => {
-  await sleep(23);
+  await sleep(108);
 });
 test('test-0295', async () => {
-  await sleep(83);
+  await sleep(118);
 });
 test('test-0296', async () => {
-  await sleep(101);
+  await sleep(106);
 });
 test('test-0297', async () => {
-  await sleep(44);
+  await sleep(105);
 });
 test('test-0298', async () => {
-  await sleep(116);
+  await sleep(92);
 });
 test('test-0299', async () => {
-  await sleep(10);
+  await sleep(94);
 });
 test('test-0300', async () => {
-  await sleep(108);
+  await sleep(109);
 });
