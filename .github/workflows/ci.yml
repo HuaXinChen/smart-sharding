@@ -72,7 +72,7 @@ jobs:
 
       - name: Run with smart sharding
         if: needs.prepare.outputs.use_smart == 'true'
-        run: npx playwright test -g "$(cat shard-${{ matrix.shard }}.txt | tr '\n' '|')" --workers=10
+        run: npx playwright test -g "$(cat shard-${{ matrix.shard }}.txt | tr '\n' '|' | sed 's/|$//')" --workers=10
 
       - name: Run with default sharding
         if: needs.prepare.outputs.use_smart == 'false'
