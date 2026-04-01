@@ -5,7 +5,7 @@ description: Collects test duration metadata from GitHub Actions runs and merges
 
 # Get Test Meta From GitHub Runs
 
-This skill collects Allure test results from the last N successful GitHub Actions workflow runs and merges them into a `test-durations.json` file for smart sharding.
+This skill collects Allure test results from the last **3 successful** GitHub Actions workflow runs and merges them into a `test-durations.json` file for smart sharding.
 
 ## When to Use This Skill
 
@@ -23,15 +23,15 @@ This skill collects Allure test results from the last N successful GitHub Action
 
 ## Workflow
 
-### Step 1: Identify the Workflow and Runs
+### Step 1: Identify the Last 3 Successful Runs
 
-Find the last N successful runs from the workflow:
+Find the last 3 successful runs from the workflow:
 
 ```bash
-gh run list --workflow ci.yml --json name,number,status,conclusion --limit 10
+gh run list --workflow ci.yml --json number,databaseId,conclusion --limit 5
 ```
 
-Filter for runs with `status: completed` and `conclusion: success`.
+Filter for runs with `status: completed` and `conclusion: success`. Take only the last 3.
 
 ### Step 2: Get Artifact List
 
@@ -70,20 +70,28 @@ npx tsx smart-shard.ts --merge --artifact=test-durations.json --allureDir=/tmp/a
 
 ## Complete Example
 
-Collect durations from last 3 runs:
+Collect durations from the last 3 successful runs:
 
 ```bash
-# Find last 3 successful runs
-gh run list --workflow ci.yml --json number,status,conclusion | jq '.[] | select(.status == "completed" and .conclusion == "success") | .number' | head -3
+# Get run IDs for last 3 successful runs
+gh run list --workflow ci.yml --json number,databaseId,conclusion --limit 5
+# Filter: take runs with conclusion="success", last 3
 
-# Download and merge run #5
-mkdir -p /tmp/allure-run5
-gh run download 12345678901 -n "allure-results-1" -n "allure-results-2" ... -n "allure-results-10" -D /tmp/allure-run5
-mkdir -p /tmp/allure-run5-flat && cp /tmp/allure-run5/allure-results-*/*-result.json /tmp/allure-run5-flat/
-npx tsx smart-shard.ts --merge --artifact=test-durations.json --allureDir=/tmp/allure-run5-flat
+# Example: Download and merge run #X (replace with actual run IDs)
+RUN_ID=23836301810
+mkdir -p /tmp/allure-run
+gh run download $RUN_ID -n "allure-results-1" -n "allure-results-2" -n "allure-results-3" -n "allure-results-4" -n "allure-results-5" -n "allure-results-6" -n "allure-results-7" -n "allure-results-8" -n "allure-results-9" -n "allure-results-10" -D /tmp/allure-run
+mkdir -p /tmp/allure-run-flat && cp /tmp/allure-run/allure-results-*/*-result.json /tmp/allure-run-flat/
+npx tsx smart-shard.ts --merge --artifact=test-durations.json --allureDir=/tmp/allure-run-flat
 
-# Repeat for runs #4 and #3
+# Repeat for 2 more runs (total 3)
 ```
+
+## Important Rules
+
+- **Never collect more than 3 runs** - Always use only the last 3 successful runs
+- **runCount must never exceed 3** - The smart-shard.ts script keeps a sliding window, but you should only add new runs when needed
+- If current runCount is 3, collect only the latest run to replace the oldest
 
 ## Expected Output
 
@@ -104,6 +112,7 @@ Each run should have 500 test duration entries (for 50 features × 10 tests).
 
 ## Notes
 
-- The `smart-shard.ts` script keeps only the last 4 runs (MAX_RUNS_TO_KEEP + 1)
+- The `smart-shard.ts` script uses only the last 3 runs for smart sharding calculations
 - If runCount ≤ 1, smart sharding will fall back to default Playwright sharding
 - Effective durations are averaged across all available runs
+- **Always keep exactly 3 runs** - Never exceed 3 runs in the artifact

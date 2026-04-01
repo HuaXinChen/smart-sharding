@@ -33,7 +33,7 @@ interface AllureResult {
 }
 
 const DEFAULT_DURATION = 1000;
-const MAX_RUNS_TO_KEEP = 3;
+const MAX_RUNS_TO_KEEP = 2;
 
 function parseAllureResults(allureDir: string): Record<string, number> {
   const durations: Record<string, number> = {};
@@ -120,8 +120,8 @@ function mergeDurations(artifactPath: string, allureDir: string): void {
     durations: newDurations,
   });
 
-  if (artifact.runs.length > MAX_RUNS_TO_KEEP + 1) {
-    artifact.runs = artifact.runs.slice(-(MAX_RUNS_TO_KEEP + 1));
+  if (artifact.runs.length > MAX_RUNS_TO_KEEP) {
+    artifact.runs = artifact.runs.slice(-MAX_RUNS_TO_KEEP);
   }
 
   saveArtifact(artifactPath, artifact);
@@ -268,7 +268,7 @@ async function main() {
     }
 
     const effectiveDurations = getEffectiveDurations(artifact);
-    const runsUsed = artifact.runCount <= 4 ? artifact.runCount : MAX_RUNS_TO_KEEP;
+    const runsUsed = artifact.runCount <= 3 ? artifact.runCount : MAX_RUNS_TO_KEEP;
     console.log(`Using ${runsUsed} runs for duration calculation`);
     
     const tests = mapArtifactToTests(effectiveDurations);
