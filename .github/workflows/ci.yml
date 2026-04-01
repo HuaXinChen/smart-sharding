@@ -17,30 +17,135 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      use_smart: ${{ steps.check.outputs.use_smart }}
+      run_count: ${{ steps.check.outputs.run_count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download test-durations artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-durations
+          path: .
+        continue-on-error: true
+
+      - name: Check run count
+        id: check
+        run: |
+          if [ -f test-durations.json ]; then
+            RUN_COUNT=$(jq -r '.runCount // 0' test-durations.json)
+            echo "run_count=$RUN_COUNT" >> $GITHUB_OUTPUT
+            if [ "$RUN_COUNT" -gt 0 ]; then
+              echo "use_smart=true" >> $GITHUB_OUTPUT
+            else
+              echo "use_smart=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "run_count=0" >> $GITHUB_OUTPUT
+            echo "use_smart=false" >> $GITHUB_OUTPUT
+          fi
+
   test:
-    timeout-minutes: 120
+    needs: prepare
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
-      - name: Run Playwright tests
+
+      - name: Download test-durations artifact
+        if: needs.prepare.outputs.use_smart == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: test-durations
+          path: .
+        continue-on-error: true
+
+      - name: Generate smart shards
+        if: needs.prepare.outputs.use_smart == 'true'
+        run: npx tsx smart-shard.ts --gen-shards --artifact=test-durations.json --shards=10 --useGrep
+
+      - name: Run with smart sharding
+        if: needs.prepare.outputs.use_smart == 'true'
+        run: npx playwright test -g "$(cat shard-${{ matrix.shard }}.txt | tr '\n' '|')" --workers=10
+
+      - name: Run with default sharding
+        if: needs.prepare.outputs.use_smart == 'false'
         run: npx playwright test --shard=${{ matrix.shard }}/10 --workers=10
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: allure-results-${{ matrix.shard }}
           path: allure-results/
+          retention-days: 30
+
+  update:
+    needs: [prepare, test]
+    if: needs.prepare.outputs.use_smart == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download test-durations artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-durations
+          path: .
+        continue-on-error: true
+
+      - name: Download all allure results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: allure-results
+          merge-multiple: true
+
+      - name: Merge durations into artifact
+        run: npx tsx smart-shard.ts --merge --artifact=test-durations.json --allureDir=allure-results
+
+      - name: Commit and upload updated artifact
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add test-durations.json
+          git diff --staged --quiet || git commit -m "Update test durations from workflow run"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: test-durations.json
           retention-days: 30
 
   report:
@@ -52,24 +157,32 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
+
       - name: Download allure results
         uses: actions/download-artifact@v4
         with:
           pattern: allure-results-*
           path: allure-results
           merge-multiple: true
+
       - name: Generate Allure report
         run: npx allure generate allure-results -o allure-report --clean
+
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./allure-report
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
