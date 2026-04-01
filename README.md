@@ -47,14 +47,14 @@ npx playwright test -g "$(cat shard-1.txt | tr '\n' '|')" --workers=10
 
 ## Artifact Format
 
-The system stores duration data in `test-durations.json`:
+The system stores duration data in `test-durations.json`, which is **committed to the repository**:
 
 ```json
 {
-  "runCount": 6,
+  "runCount": 3,
   "runs": [
     {
-      "timestamp": "2026-04-01T05:09:49.760Z",
+      "timestamp": "2026-04-01T06:05:48.348Z",
       "durations": {
         "tests/features/feature-01.spec.ts::test-0001": 102000
       }
@@ -76,27 +76,25 @@ The system stores duration data in `test-durations.json`:
 
 The workflow in `.github/workflows/ci.yml` provides:
 
-1. **prepare job**: Checks run count, determines if smart sharding is possible
+1. **prepare job**: Checks committed `test-durations.json`, determines if smart sharding is possible
 2. **test job**: Runs tests with either smart shards or default Playwright sharding
-3. **update job**: Merges new duration data into artifact (only when smart sharding active)
-4. **report job**: Generates Allure report
+3. **report job**: Generates Allure report
 
 ### Workflow Logic
 
 ```yaml
 prepare:
-  - Download test-durations artifact
-  - Check runCount > 0
-  - Output: use_smart (true/false)
+   - Uses committed test-durations.json from main branch
+   - Check runCount > 0
+   - Output: use_smart (true/false)
 
 test (10 parallel jobs):
-  - If use_smart: generate shards, run with -g grep
-  - If !use_smart: run with --shard=N/10
+   - If use_smart: generate shards from committed file, run with -g grep
+   - If !use_smart: run with --shard=N/10
 
-update (conditional):
-  - Only runs if use_smart
-  - Merge new durations into artifact
-  - Commit and upload updated artifact
+report:
+   - Download all allure results
+   - Generate and deploy Allure report
 ```
 
 ## Example Output
@@ -119,8 +117,9 @@ Total: 42,025s | Avg: 4,203s | Max variance: 0.1%
 ## Files
 
 ```
-smart-shard.ts        # Main CLI tool
-.github/workflows/ci.yml  # CI workflow
+smart-shard.ts           # Main CLI tool
+test-durations.json      # Historical test durations (committed to repo)
+.github/workflows/ci.yml # CI workflow
 ```
 
 ## License

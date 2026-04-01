@@ -27,13 +27,6 @@ jobs:
         with:
           ref: main
 
-      - name: Download test-durations artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: test-durations
-          path: .
-        continue-on-error: true
-
       - name: Check run count
         id: check
         run: |
@@ -73,14 +66,6 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Download test-durations artifact
-        if: needs.prepare.outputs.use_smart == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: test-durations
-          path: .
-        continue-on-error: true
-
       - name: Generate smart shards
         if: needs.prepare.outputs.use_smart == 'true'
         run: npx tsx smart-shard.ts --gen-shards --artifact=test-durations.json --shards=10 --useGrep
@@ -98,54 +83,6 @@ jobs:
         with:
           name: allure-results-${{ matrix.shard }}
           path: allure-results/
-          retention-days: 30
-
-  update:
-    needs: [prepare, test]
-    if: needs.prepare.outputs.use_smart == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download test-durations artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: test-durations
-          path: .
-        continue-on-error: true
-
-      - name: Download all allure results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: allure-results-*
-          path: allure-results
-          merge-multiple: true
-
-      - name: Merge durations into artifact
-        run: npx tsx smart-shard.ts --merge --artifact=test-durations.json --allureDir=allure-results
-
-      - name: Commit and upload updated artifact
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add test-durations.json
-          git diff --staged --quiet || git commit -m "Update test durations from workflow run"
-          git push
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: test-durations
-          path: test-durations.json
           retention-days: 30
 
   report:
